@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ticket-ia
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ticket-ia
+  template:
+    metadata:
+      labels:
+        app: ticket-ia
+    spec:
+      containers:
+        - name: ticket-ia
+          image: ticket-ia:v4
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8005
+          env:
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: techdesk-secrets
+                  key: GEMINI_API_KEY
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: techdesk-secrets
+                  key: SESSION_SECRET
+          volumeMounts:
+            - name: data-volume
+              mountPath: /app/data
+      volumes:
+        - name: data-volume
+          persistentVolumeClaim:
+            claimName: techdesk-pvc

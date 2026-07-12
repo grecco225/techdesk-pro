@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Generador de Tickets IA</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+  <div class="contenedor">
+    <h1>🎫 Generador de Tickets de Soporte IT</h1>
+    <p class="subtitulo">Describe tu problema y la IA (Gemini) generará el ticket por ti.</p>
+
+    <form id="form-ticket">
+      <textarea id="descripcion" rows="4"
+        placeholder="Ej: Mi computador no enciende desde esta mañana, ya revisé el cable de poder..."></textarea>
+      <button type="submit" id="btn-generar">Generar Ticket</button>
+    </form>
+
+    <div id="mensaje-error" class="error oculto"></div>
+
+    <div id="resultado" class="ticket oculto">
+      <h2 id="ticket-titulo"></h2>
+      <span id="ticket-prioridad" class="badge"></span>
+      <p><strong>Categoría:</strong> <span id="ticket-categoria"></span></p>
+      <p><strong>Descripción:</strong> <span id="ticket-descripcion"></span></p>
+      <p><strong>Solución sugerida:</strong> <span id="ticket-solucion"></span></p>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,1506 @@
+
+/* ═══════════════════════════════════════════════════════════════
+   TechDesk Pro — App Core
+═══════════════════════════════════════════════════════════════ */
+
+let currentUser = null;
+let notifInterval = null;
+
+// ── Inicialización ─────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadUser();
+  buildSidebar();
+  loadDashboard();
+  loadNotifications();
+  notifInterval = setInterval(loadNotifications, 30000);
+  handleRoute();
+});
+
+// ── Cargar usuario actual ──────────────────────────────────────
+async function loadUser() {
+  try {
+    const res = await api('/auth/me');
+    currentUser = res.user;
+    document.getElementById('user-name-sidebar').textContent = currentUser.name;
+    document.getElementById('user-role-sidebar').textContent = roleLabel(currentUser.role);
+    document.getElementById('user-avatar-sidebar').textContent = currentUser.name.charAt(0).toUpperCase();
+  } catch {
+    window.location.href = '/login';
+  }
+}
+
+// ── Sidebar dinámica por rol ────────────────────────────────────
+function buildSidebar() {
+  const nav = document.getElementById('sidebar-nav');
+  const role = currentUser.role;
+
+  const menus = {
+    admin: [
+      { section: 'Principal', items: [
+        { icon: 'fa-gauge-high',    label: 'Dashboard',        page: 'dashboard'     },
+        { icon: 'fa-ticket',        label: 'Todos los Tickets', page: 'tickets'      },
+        { icon: 'fa-chart-bar',     label: 'Reportes',         page: 'reports'       },
+      ]},
+      { section: 'Administración', items: [
+        { icon: 'fa-users',         label: 'Usuarios',         page: 'admin/users'   },
+        { icon: 'fa-building',      label: 'Departamentos',    page: 'admin/departments' },
+        { icon: 'fa-file-signature',label: 'Solicitudes',      page: 'admin/requests', badge: 'requests' },
+        { icon: 'fa-shield-halved', label: 'Auditoría',        page: 'admin/audit'   },
+      ]},
+    ],
+    tic: [
+      { section: 'Principal', items: [
+        { icon: 'fa-gauge-high',    label: 'Dashboard',        page: 'dashboard'     },
+        { icon: 'fa-ticket',        label: 'Todos los Tickets', page: 'tickets'      },
+        { icon: 'fa-list-check',    label: 'Mis Tickets',      page: 'tickets/mine'  },
+      ]},
+      { section: 'TIC', items: [
+        { icon: 'fa-file-signature',label: 'Mis Solicitudes',  page: 'tic/requests'  },
+        { icon: 'fa-plus-circle',   label: 'Nueva Solicitud',  page: 'tic/requests/create' },
+      ]},
+    ],
+    employee: [
+      { section: 'Principal', items: [
+        { icon: 'fa-gauge-high',    label: 'Mi Panel',         page: 'dashboard'     },
+        { icon: 'fa-ticket',        label: 'Mis Tickets',      page: 'tickets/mine'  },
+        { icon: 'fa-plus-circle',   label: 'Nuevo Ticket',     page: 'tickets/create'},
+      ]},
+    ]
+  };
+
+  const sections = menus[role] || menus.employee;
+  let html = '';
+  sections.forEach(sec => {
+    html += `<div class="nav-section"><div class="nav-section-label">${sec.section}</div>`;
+    sec.items.forEach(item => {
+      html += `<button class="nav-item" data-page="${item.page}" onclick="openPage('${item.page}')">
+        <span class="nav-icon"><i class="fas ${item.icon}"></i></span>
+        <span class="nav-label">${item.label}</span>
+        ${item.badge ? `<span class="nav-badge" id="badge-${item.badge}" style="display:none">0</span>` : ''}
+      </button>`;
+    });
+    html += '</div>';
+  });
+  nav.innerHTML = html;
+}
+
+// ── Routing / Navigation ────────────────────────────────────────
+function openPage(page) {
+  // Update active nav
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.page === page);
+  });
+
+  const titles = {
+    'dashboard':         ['Dashboard', 'Inicio / Dashboard'],
+    'tickets':           ['Gestión de Tickets', 'Tickets / Lista'],
+    'tickets/mine':      ['Mis Tickets', 'Tickets / Mis Tickets'],
+    'tickets/create':    ['Nuevo Ticket', 'Tickets / Crear'],
+    'admin/users':       ['Gestión de Usuarios', 'Admin / Usuarios'],
+    'admin/departments': ['Departamentos', 'Admin / Departamentos'],
+    'admin/requests':    ['Solicitudes Administrativas', 'Admin / Solicitudes'],
+    'admin/audit':       ['Auditoría del Sistema', 'Admin / Auditoría'],
+    'tic/requests':      ['Mis Solicitudes Admin', 'TIC / Solicitudes'],
+    'tic/requests/create':['Nueva Solicitud Admin', 'TIC / Nueva Solicitud'],
+    'reports':           ['Reportes', 'Admin / Reportes'],
+  };
+
+  const [title, breadcrumb] = titles[page] || [page, page];
+  document.getElementById('page-title').textContent = title;
+  document.getElementById('page-breadcrumb').textContent = breadcrumb;
+
+  // Load page content
+  const content = document.getElementById('page-content');
+  content.innerHTML = renderSkeleton();
+
+  switch(page) {
+    case 'dashboard':         loadDashboard(); break;
+    case 'tickets':           loadTickets(); break;
+    case 'tickets/mine':      loadTickets(true); break;
+    case 'tickets/create':    loadCreateTicket(); break;
+    case 'admin/users':       loadUsers(); break;
+    case 'admin/departments': loadDepartments(); break;
+    case 'admin/requests':    loadAdminRequests(); break;
+    case 'admin/audit':       loadAuditLogs(); break;
+    case 'tic/requests':      loadTICRequests(); break;
+    case 'tic/requests/create': loadCreateRequest(); break;
+    case 'reports':           loadReports(); break;
+    default:                  content.innerHTML = '<div class="empty-state"><div class="empty-icon">🚧</div><div class="empty-title">Módulo en desarrollo</div></div>';
+  }
+
+  if (window.innerWidth < 768) closeSidebar();
+}
+
+function handleRoute() {
+  const path = window.location.pathname.replace('/','') || 'dashboard';
+  openPage(path === 'dashboard' ? 'dashboard' : path);
+}
+
+// ── DASHBOARD ─────────────────────────────────────────────────
+async function loadDashboard() {
+  const content = document.getElementById('page-content');
+
+  try {
+    if (currentUser.role === 'admin') {
+      const stats = await api('/admin/dashboard');
+      content.innerHTML = renderAdminDashboard(stats);
+      renderCharts(stats);
+    } else if (currentUser.role === 'tic') {
+      const stats = await api('/tic/dashboard');
+      content.innerHTML = renderTICDashboard(stats);
+    } else {
+      const stats = await api('/tickets/stats');
+      const { tickets } = await api('/tickets?limit=5');
+      content.innerHTML = renderEmployeeDashboard(stats, tickets);
+    }
+  } catch(e) {
+    content.innerHTML = renderError('No se pudo cargar el dashboard');
+  }
+}
+
+function renderAdminDashboard(s) {
+  return `
+  <div class="fade-in">
+    <div class="page-header">
+      <h2>Dashboard Ejecutivo</h2>
+      <p>Vista general del sistema — Actualizado ${new Date().toLocaleString('es')}</p>
+    </div>
+
+    <div class="stats-grid">
+      ${statCard('fa-users', s.users.total, 'Total Usuarios', `${s.users.active} activos`, '#6366f1', 'rgba(99,102,241,0.1)', "openPage('admin/users')")}
+      ${statCard('fa-ticket', s.tickets.open, 'Tickets Abiertos', `${s.tickets.total} en total`, '#ef4444', 'rgba(239,68,68,0.1)', "openPage('tickets')")}
+      ${statCard('fa-check-circle', s.tickets.resolved, 'Tickets Resueltos', `${s.tickets.closed} cerrados`, '#22c55e', 'rgba(34,197,94,0.1)', "openPage('tickets')")}
+      ${statCard('fa-triangle-exclamation', s.tickets.urgent, 'Urgentes Activos', 'Requieren atención', '#f97316', 'rgba(249,115,22,0.1)', "openPage('tickets')")}
+      ${statCard('fa-file-signature', s.requests.pending, 'Solicitudes Pendientes', `${s.requests.total} totales`, '#06b6d4', 'rgba(6,182,212,0.1)', "openPage('admin/requests')")}
+      ${statCard('fa-users-slash', s.users.suspended, 'Usuarios Suspendidos', 'Requieren revisión', '#eab308', 'rgba(234,179,8,0.1)', "openPage('admin/users')")}
+    </div>
+
+    <div class="grid-2" style="gap:20px;margin-bottom:20px;">
+      <div class="card">
+        <div class="card-header">
+          <div><div class="card-title">📊 Tickets por Estado</div></div>
+        </div>
+        <canvas id="chart-status" height="200"></canvas>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div><div class="card-title">🎯 Tickets por Prioridad</div></div>
+        </div>
+        <canvas id="chart-priority" height="200"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">🕐 Tickets Recientes</div>
+        <button class="btn btn-secondary btn-sm" onclick="openPage('tickets')">Ver todos</button>
+      </div>
+      <div class="table-wrapper">
+        <table class="table">
+          <thead><tr>
+            <th>Código</th><th>Título</th><th>Prioridad</th><th>Estado</th><th>Solicitante</th><th>Fecha</th>
+          </tr></thead>
+          <tbody>
+            ${s.recentTickets.map(t => `
+            <tr class="ticket-row-${t.priority?.toLowerCase()}">
+              <td><span class="ticket-code">${t.code}</span></td>
+              <td><span class="ticket-title-link">${escHtml(t.title)}</span></td>
+              <td>${priorityBadge(t.priority, t.color)}</td>
+              <td>${statusBadge(t.status)}</td>
+              <td>${escHtml(t.requester)}</td>
+              <td class="text-muted text-sm">${fmtDate(t.created_at)}</td>
+            </tr>`).join('') || '<tr><td colspan="6" class="text-muted" style="text-align:center;padding:32px;">No hay tickets recientes</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderTICDashboard(s) {
+  return `
+  <div class="fade-in">
+    <div class="page-header">
+      <h2>Mi Panel — TIC</h2>
+      <p>Hola, ${currentUser.name}. Aquí tienes un resumen de tu actividad.</p>
+    </div>
+    <div class="stats-grid">
+      ${statCard('fa-ticket', s.myTickets, 'Mis Tickets', 'Asignados a mí', '#6366f1', 'rgba(99,102,241,0.1)', "openPage('tickets/mine')")}
+      ${statCard('fa-clock', s.myPending, 'Pendientes', 'Sin resolver', '#eab308', 'rgba(234,179,8,0.1)', "openPage('tickets/mine')")}
+      ${statCard('fa-fire', s.myUrgent, 'Urgentes', 'Requieren atención', '#ef4444', 'rgba(239,68,68,0.1)', "openPage('tickets/mine')")}
+      ${statCard('fa-inbox', s.unassigned, 'Sin Asignar', 'En cola de espera', '#06b6d4', 'rgba(6,182,212,0.1)', "openPage('tickets')")}
+      ${statCard('fa-file-signature', s.pendingRequests, 'Solicitudes Pendientes', 'Enviadas al admin', '#8b5cf6', 'rgba(139,92,246,0.1)', "openPage('tic/requests')")}
+    </div>
+
+    <div class="grid-2" style="gap:20px;">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📋 Mis Tickets Recientes</div>
+          <button class="btn btn-secondary btn-sm" onclick="openPage('tickets/mine')">Ver todos</button>
+        </div>
+        ${ticketsMiniTable(s.recentTickets)}
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">⚡ Tickets Nuevos (Sin Asignar)</div>
+          <button class="btn btn-primary btn-sm" onclick="openPage('tickets')">Ver todos</button>
+        </div>
+        ${ticketsMiniTable(s.newTickets)}
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderEmployeeDashboard(s, tickets) {
+  return `
+  <div class="fade-in">
+    <div class="page-header">
+      <h2>Mi Panel</h2>
+      <p>Hola, ${currentUser.name}. Aquí puedes gestionar tus solicitudes de soporte.</p>
+    </div>
+    <div class="stats-grid">
+      ${statCard('fa-ticket', s.total, 'Total Tickets', 'Histórico completo', '#6366f1', 'rgba(99,102,241,0.1)', "openPage('tickets/mine')")}
+      ${statCard('fa-clock', s.en_proceso, 'En Proceso', 'Siendo atendidos', '#3b82f6', 'rgba(59,130,246,0.1)', "openPage('tickets/mine')")}
+      ${statCard('fa-check-circle', s.resuelto, 'Resueltos', 'Pendientes de cierre', '#22c55e', 'rgba(34,197,94,0.1)', "openPage('tickets/mine')")}
+      ${statCard('fa-archive', s.cerrado, 'Cerrados', 'Finalizados', '#64748b', 'rgba(100,116,139,0.1)', "openPage('tickets/mine')")}
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">🎫 Mis Tickets Recientes</div>
+        <button class="btn btn-primary btn-sm" onclick="openPage('tickets/create')">
+          <i class="fas fa-plus"></i> Nuevo Ticket
+        </button>
+      </div>
+      ${ticketsMiniTable(tickets)}
+    </div>
+
+    <div class="card" style="margin-top:20px;background:linear-gradient(135deg,rgba(99,102,241,0.1),rgba(139,92,246,0.1));border-color:rgba(99,102,241,0.3);">
+      <div style="display:flex;align-items:center;gap:16px;">
+        <div style="font-size:48px;">🤖</div>
+        <div>
+          <div style="font-size:1.1rem;font-weight:700;color:var(--text-primary);margin-bottom:6px;">¿Necesitas ayuda con un problema técnico?</div>
+          <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:12px;">Nuestra IA puede ayudarte a describir y categorizar tu problema automáticamente.</p>
+          <button class="btn btn-primary" onclick="openPage('tickets/create')">
+            <i class="fas fa-robot"></i> Crear Ticket con IA
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function ticketsMiniTable(tickets) {
+  if (!tickets?.length) return '<div class="empty-state" style="padding:32px;"><div class="empty-icon">📭</div><div class="empty-title">No hay tickets</div></div>';
+  return `<div class="table-wrapper"><table class="table">
+    <thead><tr><th>Código</th><th>Título</th><th>Prioridad</th><th>Estado</th></tr></thead>
+    <tbody>
+      ${tickets.map(t => `<tr onclick="loadTicketDetail(${t.id})" style="cursor:pointer;">
+        <td><span class="ticket-code">${t.code || '—'}</span></td>
+        <td><span class="ticket-title-link">${escHtml(t.title)}</span></td>
+        <td>${priorityBadge(t.priority || t.priority_name, t.color || t.priority_color)}</td>
+        <td>${statusBadge(t.status)}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+// ── TICKETS ────────────────────────────────────────────────────
+async function loadTickets(mine = false) {
+  const content = document.getElementById('page-content');
+  let url = mine ? '/tickets?limit=20' : '/tickets?limit=20';
+  if (mine && currentUser.role !== 'employee') url += '&assigned=me'; // handled server side for tic
+
+  try {
+    const [data, formData] = await Promise.all([api(url), api('/api/form-data')]);
+    content.innerHTML = renderTicketsList(data, formData, mine);
+    setupTicketFilters(mine);
+  } catch(e) {
+    content.innerHTML = renderError('Error cargando tickets');
+  }
+}
+
+function renderTicketsList(data, formData, mine) {
+  const { tickets, pagination } = data;
+  return `
+  <div class="fade-in">
+    <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <h2>${mine ? 'Mis Tickets' : 'Gestión de Tickets'}</h2>
+        <p>${pagination.total} tickets en total</p>
+      </div>
+      <button class="btn btn-primary" onclick="openPage('tickets/create')">
+        <i class="fas fa-plus"></i> Nuevo Ticket
+      </button>
+    </div>
+
+    <div class="filters-bar">
+      <div class="search-input-wrapper">
+        <i class="fas fa-search"></i>
+        <input type="text" class="search-input" id="search-tickets" placeholder="Buscar por código o título..." oninput="filterTickets()">
+      </div>
+      <select class="filter-select" id="filter-status" onchange="filterTickets()">
+        <option value="">Todos los estados</option>
+        <option value="nuevo">Nuevo</option>
+        <option value="en_revision">En Revisión</option>
+        <option value="en_proceso">En Proceso</option>
+        <option value="pendiente">Pendiente</option>
+        <option value="esperando_usuario">Esperando Usuario</option>
+        <option value="resuelto">Resuelto</option>
+        <option value="cerrado">Cerrado</option>
+      </select>
+      <select class="filter-select" id="filter-priority" onchange="filterTickets()">
+        <option value="">Todas las prioridades</option>
+        ${formData.priorities.map(p => `<option value="${p.name}">${p.name}</option>`).join('')}
+      </select>
+      <select class="filter-select" id="filter-category" onchange="filterTickets()">
+        <option value="">Todas las categorías</option>
+        ${formData.categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+      </select>
+    </div>
+
+    <div class="card" style="padding:0;">
+      <div class="table-wrapper" id="tickets-table-wrapper">
+        ${renderTicketsTable(tickets)}
+      </div>
+      <div style="padding:16px 20px;border-top:1px solid var(--border-color);">
+        ${renderPagination(pagination, 'filterTickets')}
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderTicketsTable(tickets) {
+  if (!tickets?.length) return '<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">No hay tickets</div><div class="empty-desc">No se encontraron tickets con los filtros actuales</div></div>';
+
+  const canAssign = currentUser.role !== 'employee';
+  return `<table class="table">
+    <thead><tr>
+      <th class="sortable">Código</th>
+      <th>Título</th>
+      <th>Categoría</th>
+      <th>Prioridad</th>
+      <th>Estado</th>
+      <th>Solicitante</th>
+      ${canAssign ? '<th>Asignado a</th>' : ''}
+      <th>Fecha</th>
+      <th>Acciones</th>
+    </tr></thead>
+    <tbody>
+      ${tickets.map(t => `
+      <tr class="ticket-row-${(t.priority_name||'').toLowerCase()}">
+        <td><span class="ticket-code">${t.code}</span></td>
+        <td>
+          <div class="ticket-title-link" onclick="loadTicketDetail(${t.id})">${escHtml(t.title)}</div>
+          ${t.comment_count > 0 ? `<span class="text-muted text-xs"><i class="fas fa-comment" style="margin-right:4px;"></i>${t.comment_count}</span>` : ''}
+        </td>
+        <td class="text-muted text-sm">${t.category_name || '—'}</td>
+        <td>${priorityBadge(t.priority_name, t.priority_color)}</td>
+        <td>${statusBadge(t.status)}</td>
+        <td>${escHtml(t.requester_name || '—')}</td>
+        ${canAssign ? `<td class="text-sm">${t.assigned_name ? `<span class="badge badge-info">${escHtml(t.assigned_name)}</span>` : '<span class="text-muted">Sin asignar</span>'}</td>` : ''}
+        <td class="text-muted text-sm">${fmtDate(t.created_at)}</td>
+        <td>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-ghost btn-sm btn-icon" onclick="loadTicketDetail(${t.id})" title="Ver detalle">
+              <i class="fas fa-eye"></i>
+            </button>
+            ${canAssign && t.status === 'nuevo' ? `
+            <button class="btn btn-secondary btn-sm btn-icon" onclick="quickAssign(${t.id})" title="Asignarme">
+              <i class="fas fa-user-check"></i>
+            </button>` : ''}
+          </div>
+        </td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+let ticketFilterTimeout;
+function filterTickets(page=1) {
+  clearTimeout(ticketFilterTimeout);
+  ticketFilterTimeout = setTimeout(async () => {
+    const search   = document.getElementById('search-tickets')?.value || '';
+    const status   = document.getElementById('filter-status')?.value || '';
+    const priority = document.getElementById('filter-priority')?.value || '';
+    const category = document.getElementById('filter-category')?.value || '';
+
+    const params = new URLSearchParams({ search, status, priority, category, page, limit: 15 });
+    const data = await api(`/tickets?${params}`);
+    document.getElementById('tickets-table-wrapper').innerHTML = renderTicketsTable(data.tickets);
+    document.querySelector('.pagination').outerHTML = renderPagination(data.pagination, 'filterTickets');
+  }, 300);
+}
+
+function setupTicketFilters() {} // debounce ya está en filterTickets
+
+// ── TICKET DETAIL ───────────────────────────────────────────────
+async function loadTicketDetail(id) {
+  const content = document.getElementById('page-content');
+  content.innerHTML = renderSkeleton();
+
+  try {
+    const { ticket, comments, attachments, history } = await api(`/tickets/${id}`);
+    const formData = await api('/api/form-data');
+    content.innerHTML = renderTicketDetail(ticket, comments, attachments, history, formData);
+  } catch(e) {
+    content.innerHTML = renderError('Ticket no encontrado');
+  }
+}
+
+function renderTicketDetail(t, comments, attachments, history, formData) {
+  const canManage = currentUser.role !== 'employee';
+  const isMyTicket = t.requester_id === currentUser.id;
+  const canClose = (isMyTicket || canManage) && t.status === 'resuelto';
+
+  return `
+  <div class="fade-in">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
+      <button class="btn btn-ghost btn-sm" onclick="openPage('tickets')">
+        <i class="fas fa-arrow-left"></i> Volver
+      </button>
+      <div style="flex:1;">
+        <span class="ticket-code" style="font-size:1rem;">${t.code}</span>
+        <div style="font-size:1.25rem;font-weight:700;color:var(--text-primary);margin-top:4px;">${escHtml(t.title)}</div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        ${statusBadge(t.status)}
+        ${priorityBadge(t.priority_name, t.priority_color)}
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 340px;gap:20px;">
+      <!-- Main -->
+      <div style="display:flex;flex-direction:column;gap:20px;">
+        <!-- Descripción -->
+        <div class="card">
+          <div class="card-title" style="margin-bottom:12px;">📝 Descripción</div>
+          <p style="color:var(--text-secondary);line-height:1.7;">${escHtml(t.description)}</p>
+          ${t.ai_suggested ? `<div style="margin-top:16px;padding:12px 16px;background:rgba(99,102,241,0.1);border-radius:var(--radius-md);border-left:3px solid var(--accent-primary);">
+            <div style="font-size:0.75rem;color:var(--accent-primary);font-weight:600;margin-bottom:4px;">🤖 Sugerencia IA</div>
+            <p style="color:var(--text-secondary);font-size:0.875rem;">${escHtml(JSON.parse(t.ai_suggested).solucion_sugerida || '')}</p>
+          </div>` : ''}
+        </div>
+
+        <!-- Comentarios -->
+        <div class="card">
+          <div class="card-title" style="margin-bottom:16px;">💬 Comentarios (${comments.length})</div>
+          <div id="comments-list" style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px;">
+            ${comments.map(c => renderComment(c)).join('') || '<p class="text-muted text-sm">No hay comentarios aún.</p>'}
+          </div>
+
+          <!-- Nuevo comentario -->
+          <div style="border-top:1px solid var(--border-color);padding-top:20px;">
+            <div class="form-group">
+              <label class="form-label">Agregar comentario</label>
+              <textarea class="form-control" id="new-comment" rows="3" placeholder="Escribe tu comentario..."></textarea>
+            </div>
+            ${canManage ? `<div class="form-group">
+              <label class="form-label">Tipo de comentario</label>
+              <select class="form-control" id="comment-type">
+                <option value="public">Público (visible para el empleado)</option>
+                <option value="internal">Interno (solo personal TIC/Admin)</option>
+              </select>
+            </div>` : ''}
+            <button class="btn btn-primary" onclick="addComment(${t.id})">
+              <i class="fas fa-paper-plane"></i> Enviar
+            </button>
+          </div>
+        </div>
+
+        <!-- Historial -->
+        <div class="card">
+          <div class="card-title" style="margin-bottom:16px;">🕐 Historial de Actividad</div>
+          <div class="timeline">
+            ${history.map(h => `
+            <div class="timeline-item">
+              <div class="timeline-content">
+                <div class="timeline-header">
+                  <span class="timeline-action">${escHtml(h.action)}</span>
+                  <span class="timeline-meta">${fmtDateTime(h.created_at)}</span>
+                </div>
+                <div style="font-size:0.8rem;color:var(--text-muted);">Por: ${escHtml(h.user_name)}</div>
+                ${h.note ? `<div style="font-size:0.8rem;color:var(--text-secondary);margin-top:4px;">${escHtml(h.note)}</div>` : ''}
+              </div>
+            </div>`).join('')}
+          </div>
+        </div>
+      </div>
+
+      <!-- Sidebar info -->
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <!-- Acciones -->
+        ${canManage ? `<div class="card">
+          <div class="card-title" style="margin-bottom:16px;">⚡ Acciones</div>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Cambiar Estado</label>
+              <select class="form-control" id="new-status">
+                <option value="">-- Seleccionar --</option>
+                <option value="nuevo">Nuevo</option>
+                <option value="en_revision">En Revisión</option>
+                <option value="en_proceso">En Proceso</option>
+                <option value="pendiente">Pendiente</option>
+                <option value="esperando_usuario">Esperando Usuario</option>
+                <option value="resuelto">Resuelto</option>
+                <option value="cerrado">Cerrado</option>
+              </select>
+            </div>
+            <button class="btn btn-primary w-full" onclick="changeStatus(${t.id})">
+              <i class="fas fa-refresh"></i> Cambiar Estado
+            </button>
+            <button class="btn btn-secondary w-full" onclick="showAssignModal(${t.id})">
+              <i class="fas fa-user-check"></i> Asignar Técnico
+            </button>
+          </div>
+        </div>` : ''}
+
+        ${canClose && currentUser.role === 'employee' ? `<div class="card">
+          <button class="btn btn-success w-full" onclick="closeTicket(${t.id})">
+            <i class="fas fa-check"></i> Marcar como Cerrado
+          </button>
+        </div>` : ''}
+
+        <!-- Info del ticket -->
+        <div class="card">
+          <div class="card-title" style="margin-bottom:16px;">ℹ️ Detalles</div>
+          ${infoRow('Solicitante', t.requester_name)}
+          ${infoRow('Departamento', t.department_name)}
+          ${infoRow('Categoría', t.category_name)}
+          ${infoRow('Asignado a', t.assigned_name || 'Sin asignar')}
+          ${infoRow('Creado', fmtDateTime(t.created_at))}
+          ${infoRow('Actualizado', fmtDateTime(t.updated_at))}
+          ${t.due_date ? infoRow('Vence', fmtDateTime(t.due_date)) : ''}
+          ${t.resolved_at ? infoRow('Resuelto', fmtDateTime(t.resolved_at)) : ''}
+        </div>
+
+        <!-- Adjuntos -->
+        <div class="card">
+          <div class="card-title" style="margin-bottom:12px;">📎 Adjuntos (${attachments.length})</div>
+          ${attachments.map(a => `
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-color);">
+            <i class="fas fa-file" style="color:var(--accent-primary);"></i>
+            <div style="flex:1;min-width:0;">
+              <div class="truncate text-sm">${escHtml(a.original_name)}</div>
+              <div class="text-xs text-muted">${(a.size/1024).toFixed(1)} KB</div>
+            </div>
+            <a href="/uploads/${a.filename}" target="_blank" class="btn btn-ghost btn-sm btn-icon" title="Descargar">
+              <i class="fas fa-download"></i>
+            </a>
+          </div>`).join('') || '<p class="text-muted text-sm">No hay archivos adjuntos</p>'}
+
+          <div style="margin-top:12px;">
+            <input type="file" id="file-upload" style="display:none;" onchange="uploadFile(${t.id}, this)">
+            <button class="btn btn-secondary btn-sm w-full" onclick="document.getElementById('file-upload').click()">
+              <i class="fas fa-paperclip"></i> Adjuntar archivo
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderComment(c) {
+  const isInternal = c.type === 'internal';
+  return `<div style="display:flex;gap:12px;${isInternal ? 'opacity:0.85;' : ''}">
+    <div class="avatar avatar-sm">${c.author_name.charAt(0)}</div>
+    <div style="flex:1;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <span style="font-weight:600;font-size:0.875rem;">${escHtml(c.author_name)}</span>
+        <span class="badge ${c.author_role === 'tic' ? 'badge-info' : c.author_role === 'admin' ? 'badge-warning' : 'badge-muted'}" style="font-size:0.65rem;">${roleLabel(c.author_role)}</span>
+        ${isInternal ? '<span class="badge badge-muted" style="font-size:0.65rem;">🔒 Interno</span>' : ''}
+        <span class="text-muted text-xs" style="margin-left:auto;">${fmtDateTime(c.created_at)}</span>
+      </div>
+      <div style="background:var(--bg-tertiary);border-radius:var(--radius-md);padding:12px;font-size:0.875rem;color:var(--text-secondary);line-height:1.6;${isInternal ? 'border-left:3px solid var(--accent-primary);' : ''}">${escHtml(c.content)}</div>
+    </div>
+  </div>`;
+}
+
+async function addComment(ticketId) {
+  const content = document.getElementById('new-comment').value.trim();
+  const type = document.getElementById('comment-type')?.value || 'public';
+  if (!content) { toast('El comentario no puede estar vacío', 'warning'); return; }
+
+  try {
+    const res = await api(`/tickets/${ticketId}/comments`, 'POST', { content, type });
+    document.getElementById('new-comment').value = '';
+    const list = document.getElementById('comments-list');
+    list.innerHTML += renderComment(res.comment);
+    list.scrollTop = list.scrollHeight;
+    toast('Comentario agregado exitosamente', 'success');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function changeStatus(ticketId) {
+  const status = document.getElementById('new-status').value;
+  if (!status) { toast('Selecciona un estado', 'warning'); return; }
+  try {
+    await api(`/tickets/${ticketId}/status`, 'PUT', { status });
+    toast('Estado actualizado', 'success');
+    loadTicketDetail(ticketId);
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function closeTicket(ticketId) {
+  try {
+    await api(`/tickets/${ticketId}/status`, 'PUT', { status: 'cerrado' });
+    toast('Ticket cerrado. ¡Gracias!', 'success');
+    loadTicketDetail(ticketId);
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function quickAssign(ticketId) {
+  try {
+    await api(`/tickets/${ticketId}/assign`, 'PUT', { assigned_to: currentUser.id });
+    toast('Ticket asignado a ti', 'success');
+    filterTickets();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function uploadFile(ticketId, input) {
+  const file = input.files[0];
+  if (!file) return;
+  const form = new FormData();
+  form.append('file', file);
+  try {
+    const res = await fetch(`/tickets/${ticketId}/attachments`, { method: 'POST', body: form, credentials: 'include' });
+    if (!res.ok) throw new Error('Error al subir archivo');
+    toast('Archivo adjunto exitosamente', 'success');
+    loadTicketDetail(ticketId);
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ── CREATE TICKET ───────────────────────────────────────────────
+async function loadCreateTicket() {
+  const content = document.getElementById('page-content');
+  const formData = await api('/api/form-data');
+  content.innerHTML = renderCreateTicket(formData);
+}
+
+function renderCreateTicket(fd) {
+  return `
+  <div class="fade-in" style="max-width:800px;">
+    <div class="page-header">
+      <h2>🎫 Crear Nuevo Ticket</h2>
+      <p>Describe tu problema y la IA te ayudará a clasificarlo automáticamente</p>
+    </div>
+
+    <!-- IA Helper -->
+    <div class="card" style="margin-bottom:20px;background:linear-gradient(135deg,rgba(99,102,241,0.08),rgba(139,92,246,0.08));border-color:rgba(99,102,241,0.25);">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+        <span style="font-size:28px;">🤖</span>
+        <div>
+          <div style="font-weight:600;color:var(--text-primary);">Asistente IA con Gemini</div>
+          <div class="text-muted text-sm">Describe tu problema y la IA generará el ticket automáticamente</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <textarea class="form-control" id="ai-desc" rows="2" placeholder="Ej: Mi computadora no enciende desde esta mañana, ya revisé el cable..."></textarea>
+        <button class="btn btn-primary" onclick="generateWithAI()" id="btn-ai" style="white-space:nowrap;align-self:flex-end;">
+          <i class="fas fa-robot"></i> Generar
+        </button>
+      </div>
+      <div id="ai-result" style="display:none;margin-top:12px;padding:12px;background:rgba(99,102,241,0.1);border-radius:var(--radius-md);font-size:0.875rem;color:var(--text-secondary);"></div>
+    </div>
+
+    <div class="card">
+      <form id="create-ticket-form">
+        <div class="grid-2">
+          <div class="form-group" style="grid-column:1/-1;">
+            <label class="form-label required">Título del problema</label>
+            <input type="text" class="form-control" id="t-title" placeholder="Resumen breve del problema" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label required">Categoría</label>
+            <select class="form-control" id="t-category" onchange="loadSubcategories(this.value)">
+              <option value="">-- Seleccionar --</option>
+              ${fd.categories.map(c => `<option value="${c.id}">${c.icon ? '' : ''}${c.name}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Subcategoría</label>
+            <select class="form-control" id="t-subcategory">
+              <option value="">-- Selecciona una categoría primero --</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label required">Prioridad</label>
+            <select class="form-control" id="t-priority" required>
+              <option value="">-- Seleccionar --</option>
+              ${fd.priorities.map(p => `<option value="${p.id}" style="color:${p.color}">${p.name}</option>`).join('')}
+            </select>
+          </div>
+          ${currentUser.role !== 'employee' ? `<div class="form-group">
+            <label class="form-label">Asignar a</label>
+            <select class="form-control" id="t-assign">
+              <option value="">Sin asignar (automático)</option>
+              ${fd.ticUsers.map(u => `<option value="${u.id}">${u.name}</option>`).join('')}
+            </select>
+          </div>` : ''}
+          <div class="form-group" style="grid-column:1/-1;">
+            <label class="form-label required">Descripción detallada</label>
+            <textarea class="form-control" id="t-description" rows="5" placeholder="Describe el problema con el mayor detalle posible: qué ocurrió, cuándo, qué has intentado..." required></textarea>
+          </div>
+          <div class="form-group" style="grid-column:1/-1;">
+            <label class="form-label">Archivo adjunto (opcional)</label>
+            <input type="file" class="form-control" id="t-file">
+            <div class="form-hint">Máximo 10MB. Formatos: PDF, DOC, XLS, PNG, JPG, ZIP</div>
+          </div>
+        </div>
+
+        <div class="modal-footer" style="border:none;margin-top:0;padding-top:0;">
+          <button type="button" class="btn btn-secondary" onclick="openPage('tickets')">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-ticket">
+            <i class="fas fa-paper-plane"></i> Crear Ticket
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>`;
+}
+
+async function generateWithAI() {
+  const desc = document.getElementById('ai-desc').value.trim();
+  if (desc.length < 5) { toast('Describe el problema con más detalle', 'warning'); return; }
+
+  const btn = document.getElementById('btn-ai');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+  try {
+    const ticket = await api('/api/generar-ticket', 'POST', { descripcion: desc });
+    document.getElementById('t-title').value = ticket.titulo || '';
+    document.getElementById('t-description').value = ticket.descripcion || desc;
+
+    const resultDiv = document.getElementById('ai-result');
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = `<strong>🤖 IA sugiere:</strong> <em>${escHtml(ticket.solucion_sugerida || '')}</em>`;
+
+    toast('Ticket generado con IA', 'success');
+  } catch(e) {
+    toast('Error al conectar con IA. Completa el formulario manualmente.', 'warning');
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-robot"></i> Generar';
+  }
+}
+
+async function loadSubcategories(catId) {
+  const sel = document.getElementById('t-subcategory');
+  if (!catId) { sel.innerHTML = '<option value="">-- Selecciona una categoría --</option>'; return; }
+  const { subcategories } = await api('/api/form-data');
+  const subs = subcategories.filter(s => s.category_id == catId);
+  sel.innerHTML = `<option value="">-- Opcional --</option>${subs.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}`;
+}
+
+document.addEventListener('submit', async (e) => {
+  if (e.target.id === 'create-ticket-form') {
+    e.preventDefault();
+    const btn = document.getElementById('btn-submit-ticket');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creando...';
+
+    try {
+      const payload = {
+        title: document.getElementById('t-title').value.trim(),
+        description: document.getElementById('t-description').value.trim(),
+        category_id: document.getElementById('t-category').value || null,
+        subcategory_id: document.getElementById('t-subcategory').value || null,
+        priority_id: document.getElementById('t-priority').value,
+      };
+      if (!payload.title || !payload.description || !payload.priority_id) {
+        toast('Completa todos los campos requeridos', 'warning');
+        return;
+      }
+      const res = await api('/tickets', 'POST', payload);
+      toast('¡Ticket creado exitosamente!', 'success');
+      setTimeout(() => loadTicketDetail(res.ticket.id), 1000);
+    } catch(e) {
+      toast(e.message || 'Error al crear ticket', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-paper-plane"></i> Crear Ticket';
+    }
+  }
+});
+
+// ── USERS (ADMIN) ───────────────────────────────────────────────
+async function loadUsers() {
+  const content = document.getElementById('page-content');
+  try {
+    const [{ users, pagination }, { departments }] = await Promise.all([api('/admin/users'), api('/admin/departments')]);
+    content.innerHTML = renderUsersPage(users, pagination, departments);
+  } catch(e) { content.innerHTML = renderError('Error cargando usuarios'); }
+}
+
+function renderUsersPage(users, pagination, departments) {
+  return `
+  <div class="fade-in">
+    <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;">
+      <div><h2>👥 Gestión de Usuarios</h2><p>${pagination.total} usuarios registrados</p></div>
+      <button class="btn btn-primary" onclick="showCreateUserModal()"><i class="fas fa-plus"></i> Nuevo Usuario</button>
+    </div>
+    <div class="filters-bar">
+      <div class="search-input-wrapper">
+        <i class="fas fa-search"></i>
+        <input type="text" class="search-input" id="search-users" placeholder="Buscar por nombre o email..." oninput="filterUsers()">
+      </div>
+      <select class="filter-select" id="filter-role" onchange="filterUsers()">
+        <option value="">Todos los roles</option>
+        <option value="admin">Administrador</option>
+        <option value="tic">TIC</option>
+        <option value="employee">Empleado</option>
+      </select>
+      <select class="filter-select" id="filter-dept" onchange="filterUsers()">
+        <option value="">Todos los departamentos</option>
+        ${departments.map(d => `<option value="${d.id}">${d.name}</option>`).join('')}
+      </select>
+    </div>
+    <div class="card" style="padding:0;">
+      <div id="users-table">
+        ${renderUsersTable(users)}
+      </div>
+      <div style="padding:16px 20px;border-top:1px solid var(--border-color);">
+        ${renderPagination(pagination, 'filterUsers')}
+      </div>
+    </div>
+  </div>
+
+  <!-- Create User Modal -->
+  <div class="modal-overlay" id="modal-create-user">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title">➕ Crear Usuario</span>
+        <button class="modal-close" onclick="closeModal('modal-create-user')"><i class="fas fa-xmark"></i></button>
+      </div>
+      <form id="create-user-form">
+        <div class="grid-2">
+          <div class="form-group" style="grid-column:1/-1;"><label class="form-label required">Nombre completo</label><input type="text" class="form-control" name="name" required></div>
+          <div class="form-group" style="grid-column:1/-1;"><label class="form-label required">Email</label><input type="email" class="form-control" name="email" required></div>
+          <div class="form-group"><label class="form-label required">Contraseña</label><input type="password" class="form-control" name="password" required minlength="8"></div>
+          <div class="form-group"><label class="form-label required">Rol</label><select class="form-control" name="role" required><option value="">-- Rol --</option><option value="admin">Administrador</option><option value="tic">TIC</option><option value="employee">Empleado</option></select></div>
+          <div class="form-group"><label class="form-label">Departamento</label><select class="form-control" name="department_id"><option value="">-- Opcional --</option>${departments.map(d => `<option value="${d.id}">${d.name}</option>`).join('')}</select></div>
+          <div class="form-group"><label class="form-label">Teléfono</label><input type="text" class="form-control" name="phone"></div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeModal('modal-create-user')">Cancelar</button><button type="submit" class="btn btn-primary">Crear Usuario</button></div>
+      </form>
+    </div>
+  </div>`;
+}
+
+function renderUsersTable(users) {
+  if (!users?.length) return '<div class="empty-state"><div class="empty-icon">👥</div><div class="empty-title">No hay usuarios</div></div>';
+  return `<table class="table">
+    <thead><tr><th>Usuario</th><th>Email</th><th>Rol</th><th>Departamento</th><th>Estado</th><th>Último acceso</th><th>Acciones</th></tr></thead>
+    <tbody>
+      ${users.map(u => `<tr>
+        <td><div style="display:flex;align-items:center;gap:10px;">
+          <div class="avatar avatar-sm">${u.name.charAt(0)}</div>
+          <span style="font-weight:500;">${escHtml(u.name)}</span>
+        </div></td>
+        <td class="text-muted text-sm">${escHtml(u.email)}</td>
+        <td>${roleBadge(u.role)}</td>
+        <td class="text-sm text-muted">${escHtml(u.department_name || '—')}</td>
+        <td>${u.suspended ? '<span class="badge badge-danger">Suspendido</span>' : u.active ? '<span class="badge badge-success">Activo</span>' : '<span class="badge badge-muted">Inactivo</span>'}</td>
+        <td class="text-xs text-muted">${u.last_login ? fmtDate(u.last_login) : 'Nunca'}</td>
+        <td>
+          <div style="display:flex;gap:4px;">
+            <button class="btn btn-ghost btn-sm btn-icon" onclick="showEditUser(${u.id},'${escHtml(u.name)}','${u.role}',${u.active},${u.suspended})" title="Editar"><i class="fas fa-pen"></i></button>
+            <button class="btn btn-ghost btn-sm btn-icon" onclick="resetPassword(${u.id})" title="Resetear contraseña"><i class="fas fa-key"></i></button>
+            ${u.id !== currentUser.id ? `<button class="btn btn-danger btn-sm btn-icon" onclick="deleteUser(${u.id},'${escHtml(u.name)}')" title="Eliminar"><i class="fas fa-trash"></i></button>` : ''}
+          </div>
+        </td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+function showCreateUserModal() { document.getElementById('modal-create-user').classList.add('show'); }
+
+document.addEventListener('submit', async (e) => {
+  if (e.target.id === 'create-user-form') {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target));
+    try {
+      await api('/admin/users', 'POST', data);
+      toast('Usuario creado exitosamente', 'success');
+      closeModal('modal-create-user');
+      loadUsers();
+    } catch(err) { toast(err.message, 'error'); }
+  }
+});
+
+async function filterUsers(page=1) {
+  const search = document.getElementById('search-users')?.value || '';
+  const role   = document.getElementById('filter-role')?.value || '';
+  const dept   = document.getElementById('filter-dept')?.value || '';
+  const params = new URLSearchParams({ search, role, department: dept, page, limit: 20 });
+  const { users } = await api(`/admin/users?${params}`);
+  document.getElementById('users-table').innerHTML = renderUsersTable(users);
+}
+
+async function resetPassword(userId) {
+  const pw = prompt('Nueva contraseña (mínimo 8 caracteres):');
+  if (!pw || pw.length < 8) { toast('Contraseña inválida', 'warning'); return; }
+  try {
+    await api(`/admin/users/${userId}/reset-password`, 'POST', { password: pw });
+    toast('Contraseña restablecida', 'success');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function deleteUser(userId, name) {
+  if (!confirm(`¿Eliminar al usuario "${name}"? Esta acción no se puede deshacer.`)) return;
+  try {
+    await api(`/admin/users/${userId}`, 'DELETE');
+    toast('Usuario eliminado', 'success');
+    loadUsers();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ── ADMIN REQUESTS ─────────────────────────────────────────────
+async function loadAdminRequests() {
+  const content = document.getElementById('page-content');
+  try {
+    const { requests, pagination } = await api('/admin/requests');
+    content.innerHTML = renderAdminRequests(requests, pagination);
+  } catch(e) { content.innerHTML = renderError('Error cargando solicitudes'); }
+}
+
+function renderAdminRequests(requests, pagination) {
+  return `
+  <div class="fade-in">
+    <div class="page-header"><h2>📋 Solicitudes Administrativas</h2><p>${pagination.total} solicitudes totales</p></div>
+    <div class="card" style="padding:0;">
+      <table class="table">
+        <thead><tr><th>Código</th><th>Tipo</th><th>Solicitante</th><th>Afectado</th><th>Asunto</th><th>Prioridad</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr></thead>
+        <tbody>
+          ${requests.map(r => `<tr>
+            <td><span class="ticket-code">${r.code}</span></td>
+            <td class="text-sm">${requestTypeLabel(r.type)}</td>
+            <td class="text-sm">${escHtml(r.requester_name)}</td>
+            <td class="text-sm text-muted">${escHtml(r.affected_name || '—')}</td>
+            <td><span class="truncate" style="max-width:150px;display:block;">${escHtml(r.subject)}</span></td>
+            <td>${requestPriorityBadge(r.priority)}</td>
+            <td>${requestStatusBadge(r.status)}</td>
+            <td class="text-xs text-muted">${fmtDate(r.created_at)}</td>
+            <td>
+              ${r.status === 'pendiente' ? `
+              <div style="display:flex;gap:4px;">
+                <button class="btn btn-success btn-sm" onclick="resolveRequest(${r.id},'aprobada')"><i class="fas fa-check"></i> Aprobar</button>
+                <button class="btn btn-danger btn-sm" onclick="resolveRequest(${r.id},'rechazada')"><i class="fas fa-xmark"></i> Rechazar</button>
+              </div>` : `<span class="text-muted text-sm">${escHtml(r.resolved_by_name || '—')}</span>`}
+            </td>
+          </tr>`).join('') || '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-muted);">No hay solicitudes</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+async function resolveRequest(id, action) {
+  const response = action === 'rechazada' ? prompt('Motivo del rechazo (opcional):') : null;
+  try {
+    await api(`/admin/requests/${id}`, 'PUT', { action, admin_response: response });
+    toast(`Solicitud ${action} exitosamente`, 'success');
+    loadAdminRequests();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ── TIC REQUESTS ────────────────────────────────────────────────
+async function loadTICRequests() {
+  const content = document.getElementById('page-content');
+  try {
+    const { requests, pagination } = await api('/tic/requests');
+    content.innerHTML = renderTICRequests(requests, pagination);
+  } catch(e) { content.innerHTML = renderError('Error cargando solicitudes'); }
+}
+
+function renderTICRequests(requests, pagination) {
+  return `
+  <div class="fade-in">
+    <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;">
+      <div><h2>📋 Mis Solicitudes Administrativas</h2><p>${pagination.total} solicitudes enviadas</p></div>
+      <button class="btn btn-primary" onclick="openPage('tic/requests/create')"><i class="fas fa-plus"></i> Nueva Solicitud</button>
+    </div>
+    <div class="card" style="padding:0;">
+      <table class="table">
+        <thead><tr><th>Código</th><th>Tipo</th><th>Afectado</th><th>Asunto</th><th>Prioridad</th><th>Estado</th><th>Respuesta Admin</th><th>Fecha</th></tr></thead>
+        <tbody>
+          ${requests.map(r => `<tr>
+            <td><span class="ticket-code">${r.code}</span></td>
+            <td class="text-sm">${requestTypeLabel(r.type)}</td>
+            <td class="text-sm text-muted">${escHtml(r.affected_name || '—')}</td>
+            <td>${escHtml(r.subject)}</td>
+            <td>${requestPriorityBadge(r.priority)}</td>
+            <td>${requestStatusBadge(r.status)}</td>
+            <td class="text-sm text-muted">${escHtml(r.admin_response || '—')}</td>
+            <td class="text-xs text-muted">${fmtDate(r.created_at)}</td>
+          </tr>`).join('') || '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-muted);">No hay solicitudes aún</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+async function loadCreateRequest() {
+  const content = document.getElementById('page-content');
+  try {
+    const [{ types }, { users }] = await Promise.all([api('/tic/request-types'), api('/admin/users?role=employee&limit=100')]);
+    content.innerHTML = renderCreateRequestForm(types, users);
+  } catch(e) { content.innerHTML = renderError('Error cargando formulario'); }
+}
+
+function renderCreateRequestForm(types, users) {
+  return `
+  <div class="fade-in" style="max-width:700px;">
+    <div class="page-header">
+      <h2>📋 Nueva Solicitud Administrativa</h2>
+      <p>Envía una solicitud al Administrador para gestionar acciones sobre empleados</p>
+    </div>
+    <div class="card">
+      <form id="create-request-form">
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label required">Tipo de solicitud</label>
+            <select class="form-control" name="type" required>
+              <option value="">-- Seleccionar --</option>
+              ${types.map(t => `<option value="${t.value}">${t.label}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Empleado afectado</label>
+            <select class="form-control" name="affected_user_id">
+              <option value="">-- Seleccionar (opcional) --</option>
+              ${users.map(u => `<option value="${u.id}">${escHtml(u.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group" style="grid-column:1/-1;">
+            <label class="form-label required">Asunto</label>
+            <input type="text" class="form-control" name="subject" required placeholder="Resumen breve de la solicitud">
+          </div>
+          <div class="form-group" style="grid-column:1/-1;">
+            <label class="form-label required">Descripción detallada</label>
+            <textarea class="form-control" name="description" rows="5" required placeholder="Explica detalladamente el motivo y contexto de la solicitud..."></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label required">Prioridad</label>
+            <select class="form-control" name="priority" required>
+              <option value="baja">🟢 Baja</option>
+              <option value="media" selected>🟡 Media</option>
+              <option value="alta">🟠 Alta</option>
+              <option value="urgente">🔴 Urgente</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Observaciones adicionales</label>
+            <textarea class="form-control" name="observations" rows="3" placeholder="Información adicional relevante..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer" style="border:none;margin-top:0;padding-top:0;">
+          <button type="button" class="btn btn-secondary" onclick="openPage('tic/requests')">Cancelar</button>
+          <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Enviar Solicitud</button>
+        </div>
+      </form>
+    </div>
+  </div>`;
+}
+
+document.addEventListener('submit', async (e) => {
+  if (e.target.id === 'create-request-form') {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target));
+    try {
+      await api('/tic/requests', 'POST', data);
+      toast('Solicitud enviada al Administrador', 'success');
+      openPage('tic/requests');
+    } catch(err) { toast(err.message, 'error'); }
+  }
+});
+
+// ── AUDIT LOGS ─────────────────────────────────────────────────
+async function loadAuditLogs() {
+  const content = document.getElementById('page-content');
+  try {
+    const { logs, pagination } = await api('/admin/audit');
+    content.innerHTML = `
+    <div class="fade-in">
+      <div class="page-header"><h2>🛡️ Auditoría del Sistema</h2><p>${pagination.total} registros totales</p></div>
+      <div class="card" style="padding:0;">
+        <table class="table">
+          <thead><tr><th>Usuario</th><th>Acción</th><th>Entidad</th><th>IP</th><th>Fecha</th></tr></thead>
+          <tbody>
+            ${logs.map(l => `<tr>
+              <td>${escHtml(l.user_name || 'Sistema')}</td>
+              <td><span class="badge badge-info">${escHtml(l.action)}</span></td>
+              <td class="text-sm text-muted">${escHtml(l.entity)}${l.entity_id ? ` #${l.entity_id}` : ''}</td>
+              <td class="text-xs text-muted">${escHtml(l.ip_address || '—')}</td>
+              <td class="text-xs text-muted">${fmtDateTime(l.created_at)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+  } catch(e) { content.innerHTML = renderError('Error cargando auditoría'); }
+}
+
+async function loadDepartments() {
+  const content = document.getElementById('page-content');
+  try {
+    const { departments } = await api('/admin/departments');
+    content.innerHTML = `
+    <div class="fade-in">
+      <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;">
+        <div><h2>🏢 Departamentos</h2><p>${departments.length} departamentos</p></div>
+        <button class="btn btn-primary" onclick="showCreateDeptModal()"><i class="fas fa-plus"></i> Nuevo Departamento</button>
+      </div>
+      <div class="stats-grid">
+        ${departments.map(d => `
+        <div class="card">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div class="stat-icon"><i class="fas fa-building"></i></div>
+            <div>
+              <div class="stat-value" style="font-size:1.5rem;">${d.user_count}</div>
+              <div class="stat-label">${escHtml(d.name)}</div>
+              <div class="text-xs text-muted">${d.code}</div>
+            </div>
+          </div>
+        </div>`).join('')}
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="modal-create-dept">
+      <div class="modal">
+        <div class="modal-header"><span class="modal-title">➕ Nuevo Departamento</span><button class="modal-close" onclick="closeModal('modal-create-dept')"><i class="fas fa-xmark"></i></button></div>
+        <form id="create-dept-form">
+          <div class="form-group"><label class="form-label required">Nombre</label><input type="text" class="form-control" name="name" required></div>
+          <div class="form-group"><label class="form-label required">Código</label><input type="text" class="form-control" name="code" required style="text-transform:uppercase;"></div>
+          <div class="form-group"><label class="form-label">Descripción</label><textarea class="form-control" name="description" rows="2"></textarea></div>
+          <div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeModal('modal-create-dept')">Cancelar</button><button type="submit" class="btn btn-primary">Crear</button></div>
+        </form>
+      </div>
+    </div>`;
+  } catch(e) { content.innerHTML = renderError('Error cargando departamentos'); }
+}
+
+function showCreateDeptModal() { document.getElementById('modal-create-dept').classList.add('show'); }
+
+document.addEventListener('submit', async (e) => {
+  if (e.target.id === 'create-dept-form') {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target));
+    try {
+      await api('/admin/departments', 'POST', data);
+      toast('Departamento creado', 'success');
+      closeModal('modal-create-dept');
+      loadDepartments();
+    } catch(err) { toast(err.message, 'error'); }
+  }
+});
+
+async function loadReports() {
+  const content = document.getElementById('page-content');
+  const stats = await api('/admin/dashboard');
+  content.innerHTML = `
+  <div class="fade-in">
+    <div class="page-header"><h2>📊 Reportes</h2><p>Resumen estadístico del sistema</p></div>
+    <div class="grid-2" style="gap:20px;">
+      <div class="card">
+        <div class="card-title" style="margin-bottom:16px;">Tickets por Estado</div>
+        <canvas id="rpt-status" height="250"></canvas>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:16px;">Tickets por Prioridad</div>
+        <canvas id="rpt-priority" height="250"></canvas>
+      </div>
+    </div>
+    <div class="card" style="margin-top:20px;">
+      <div class="card-header">
+        <div class="card-title">Resumen Ejecutivo</div>
+        <button class="btn btn-secondary btn-sm" onclick="window.print()"><i class="fas fa-print"></i> Imprimir</button>
+      </div>
+      <div class="stats-grid">
+        ${statCard('fa-ticket', stats.tickets.total, 'Total Tickets', '', '#6366f1', 'rgba(99,102,241,0.1)')}
+        ${statCard('fa-check', stats.tickets.resolved, 'Resueltos', '', '#22c55e', 'rgba(34,197,94,0.1)')}
+        ${statCard('fa-users', stats.users.total, 'Usuarios', '', '#06b6d4', 'rgba(6,182,212,0.1)')}
+        ${statCard('fa-file', stats.requests.total, 'Solicitudes Admin', '', '#8b5cf6', 'rgba(139,92,246,0.1)')}
+      </div>
+    </div>
+  </div>`;
+  renderCharts(stats, 'rpt-status', 'rpt-priority');
+}
+
+// ── CHARTS ─────────────────────────────────────────────────────
+function renderCharts(stats, statusId='chart-status', priorityId='chart-priority') {
+  const statusData = stats.byStatus || [];
+  const priorityData = stats.byPriority || [];
+
+  const statusLabels = { nuevo:'Nuevo', en_revision:'En Revisión', en_proceso:'En Proceso', pendiente:'Pendiente', esperando_usuario:'Esperando', resuelto:'Resuelto', cerrado:'Cerrado' };
+  const statusColors = ['#6366f1','#06b6d4','#3b82f6','#eab308','#f97316','#22c55e','#64748b'];
+
+  if (document.getElementById(statusId)) {
+    new Chart(document.getElementById(statusId), {
+      type: 'doughnut',
+      data: {
+        labels: statusData.map(s => statusLabels[s.status] || s.status),
+        datasets: [{ data: statusData.map(s => s.count), backgroundColor: statusColors, borderWidth: 2, borderColor: '#111118' }]
+      },
+      options: { plugins: { legend: { labels: { color: '#b0b0c8', font: { family:'Inter' } } } }, responsive: true }
+    });
+  }
+
+  if (document.getElementById(priorityId)) {
+    new Chart(document.getElementById(priorityId), {
+      type: 'bar',
+      data: {
+        labels: priorityData.map(p => p.name),
+        datasets: [{ label: 'Tickets', data: priorityData.map(p => p.count), backgroundColor: priorityData.map(p => p.color + '80'), borderColor: priorityData.map(p => p.color), borderWidth: 2, borderRadius: 6 }]
+      },
+      options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#b0b0c8' }, grid: { color: 'rgba(255,255,255,0.05)' } }, y: { ticks: { color: '#b0b0c8' }, grid: { color: 'rgba(255,255,255,0.05)' } } }, responsive: true }
+    });
+  }
+}
+
+// ── NOTIFICATIONS ──────────────────────────────────────────────
+async function loadNotifications() {
+  try {
+    const { notifications, unreadCount } = await api('/admin/notifications');
+    const dot = document.getElementById('notif-dot');
+    const list = document.getElementById('notif-list');
+
+    dot.style.display = unreadCount > 0 ? 'block' : 'none';
+
+    if (!list) return;
+    if (!notifications.length) {
+      list.innerHTML = '<div class="notif-empty">✨ Sin notificaciones nuevas</div>';
+      return;
+    }
+
+    const icons = { new_ticket:'🎫', status_change:'🔄', ticket_assigned:'📋', new_comment:'💬', admin_request:'⚡', request_response:'📩', welcome:'👋', password_reset:'🔐' };
+    list.innerHTML = notifications.map(n => `
+    <div class="notif-item ${!n.read ? 'unread' : ''}" onclick="markRead(${n.id}, '${n.link || ''}')">
+      <div class="notif-icon">${icons[n.type] || '🔔'}</div>
+      <div class="notif-content">
+        <div class="notif-title">${escHtml(n.title)}</div>
+        <div class="notif-msg">${escHtml(n.message)}</div>
+        <div class="notif-time">${timeAgo(n.created_at)}</div>
+      </div>
+    </div>`).join('');
+  } catch(e) { console.error('Notif error', e); }
+}
+
+function toggleNotifications() {
+  const dd = document.getElementById('notif-dropdown');
+  dd.classList.toggle('show');
+}
+
+async function markRead(id, link) {
+  await api(`/admin/notifications/${id}/read`, 'PUT');
+  document.getElementById('notif-dropdown').classList.remove('show');
+  if (link) { /* navigate */ }
+  loadNotifications();
+}
+
+async function markAllRead() {
+  await api('/admin/notifications/read-all', 'PUT');
+  loadNotifications();
+}
+
+// ── UI HELPERS ─────────────────────────────────────────────────
+function toggleSidebar() {
+  const sb = document.getElementById('sidebar');
+  if (window.innerWidth < 768) {
+    sb.classList.toggle('mobile-open');
+    document.getElementById('mobile-overlay').style.display = sb.classList.contains('mobile-open') ? 'block' : 'none';
+  } else {
+    sb.classList.toggle('active');
+  }
+}
+
+function closeSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  if (sidebar && sidebar.classList.contains('active')) {
+    sidebar.classList.remove('active');
+  }
+}
+
+function toggleUserMenu() {
+  const drop = document.getElementById('user-dropdown');
+  if (drop) drop.classList.toggle('show');
+}
+
+function toggleTheme() {
+  const html = document.documentElement;
+  const isDark = html.dataset.theme === 'dark';
+  html.dataset.theme = isDark ? 'light' : 'dark';
+  document.getElementById('theme-btn').innerHTML = isDark ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+async function showAssignModal(ticketId) {
+  document.getElementById('assign-ticket-id').value = ticketId;
+  try {
+    const { ticUsers } = await api('/tickets/form-data');
+    const select = document.getElementById('assign-user-select');
+    select.innerHTML = ticUsers.map(u => `<option value="${u.id}">${escHtml(u.name)}</option>`).join('');
+    document.getElementById('modal-assign-ticket').classList.add('show');
+  } catch(e) { toast('Error al cargar técnicos', 'error'); }
+}
+
+document.getElementById('assign-ticket-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const ticketId = document.getElementById('assign-ticket-id').value;
+  const assigned_to = document.getElementById('assign-user-select').value;
+  const note = document.getElementById('assign-note').value;
+  try {
+    await api(`/tickets/${ticketId}/assign`, 'PUT', { assigned_to, note });
+    toast('Técnico asignado correctamente', 'success');
+    closeModal('modal-assign-ticket');
+    loadTicketDetail(ticketId);
+  } catch(err) { toast(err.message, 'error'); }
+});
+
+async function showEditUser(id, name, role, active, suspended) {
+  document.getElementById('edit-user-id').value = id;
+  document.getElementById('edit-user-name').value = name;
+  document.getElementById('edit-user-role').value = role;
+  document.getElementById('edit-user-active').value = active ? "1" : "0";
+  document.getElementById('edit-user-suspended').value = suspended ? "1" : "0";
+
+  try {
+    const { departments } = await api('/admin/departments');
+    const select = document.getElementById('edit-user-dept');
+    select.innerHTML = '<option value="">-- Ninguno --</option>' + departments.map(d => `<option value="${d.id}">${escHtml(d.name)}</option>`).join('');
+    document.getElementById('modal-edit-user').classList.add('show');
+  } catch(e) { toast('Error al cargar departamentos', 'error'); }
+}
+
+document.getElementById('edit-user-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('edit-user-id').value;
+  const payload = {
+    name: document.getElementById('edit-user-name').value.trim(),
+    role: document.getElementById('edit-user-role').value,
+    department_id: document.getElementById('edit-user-dept').value || null,
+    active: parseInt(document.getElementById('edit-user-active').value),
+    suspended: parseInt(document.getElementById('edit-user-suspended').value)
+  };
+  try {
+    await api(`/admin/users/${id}`, 'PUT', payload);
+    toast('Usuario actualizado correctamente', 'success');
+    closeModal('modal-edit-user');
+    loadUsers();
+  } catch(err) { toast(err.message, 'error'); }
+});
+
+async function logout() {
+  await api('/auth/logout', 'POST');
+  window.location.href = '/login';
+}
+
+// ── API Helper ─────────────────────────────────────────────────
+async function api(url, method='GET', body=null) {
+  const opts = { method, credentials: 'include', headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(url, opts);
+  const data = await res.json();
+  if (!res.ok) {
+    if (res.status === 401) { window.location.href = '/login'; }
+    throw new Error(data.error || 'Error en la solicitud');
+  }
+  return data;
+}
+
+// ── Toast ──────────────────────────────────────────────────────
+function toast(msg, type='info') {
+  const icons = { success:'✅', error:'❌', warning:'⚠️', info:'ℹ️' };
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.innerHTML = `<span class="toast-icon">${icons[type]}</span><span>${escHtml(msg)}</span>`;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => { el.classList.add('leaving'); setTimeout(() => el.remove(), 300); }, 4000);
+}
+
+// ── Formatters ─────────────────────────────────────────────────
+function escHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtDate(d) { if (!d) return '—'; return new Date(d).toLocaleDateString('es',{day:'2-digit',month:'short',year:'numeric'}); }
+function fmtDateTime(d) { if (!d) return '—'; return new Date(d).toLocaleString('es',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}); }
+function timeAgo(d) {
+  const secs = Math.floor((new Date() - new Date(d)) / 1000);
+  if (secs < 60) return 'Hace un momento';
+  if (secs < 3600) return `Hace ${Math.floor(secs/60)} min`;
+  if (secs < 86400) return `Hace ${Math.floor(secs/3600)} h`;
+  return fmtDate(d);
+}
+function roleLabel(role) { return {admin:'Administrador', tic:'TIC', employee:'Empleado'}[role] || role; }
+function requestTypeLabel(t) {
+  const labels = { baja_empleado:'Baja de Empleado', suspension_temporal:'Suspensión', cambio_departamento:'Cambio Departamento', cambio_permisos:'Cambio Permisos', restablecimiento_contrasena:'Reset Contraseña', asignacion_equipo:'Asign. Equipo', retiro_equipo:'Retiro Equipo', cambio_cargo:'Cambio Cargo', actualizacion_info:'Actualización Info', otro:'Otro' };
+  return labels[t] || t;
+}
+
+// ── Badge helpers ──────────────────────────────────────────────
+function priorityBadge(name, color) {
+  if (!name) return '<span class="badge badge-muted">—</span>';
+  return `<span class="priority-badge" style="background:${color}20;color:${color};">${escHtml(name)}</span>`;
+}
+function statusBadge(status) {
+  const labels = { nuevo:'Nuevo', en_revision:'En Revisión', en_proceso:'En Proceso', pendiente:'Pendiente', esperando_usuario:'Esperando', resuelto:'Resuelto', cerrado:'Cerrado' };
+  return `<span class="badge status-${status}">${labels[status] || status}</span>`;
+}
+function roleBadge(role) {
+  const map = { admin:'badge-warning', tic:'badge-info', employee:'badge-muted' };
+  return `<span class="badge ${map[role] || 'badge-muted'}">${roleLabel(role)}</span>`;
+}
+function requestPriorityBadge(p) {
+  const map = { baja:'badge-success', media:'badge-warning', alta:'badge-orange', urgente:'badge-danger' };
+  return `<span class="badge ${map[p] || 'badge-muted'}">${p}</span>`;
+}
+function requestStatusBadge(s) {
+  const map = { pendiente:'badge-warning', aprobada:'badge-success', rechazada:'badge-danger', en_proceso:'badge-info', finalizada:'badge-muted' };
+  return `<span class="badge ${map[s] || 'badge-muted'}">${s}</span>`;
+}
+
+// ── Skeleton & Helpers ─────────────────────────────────────────
+function renderSkeleton() {
+  return `<div class="fade-in">
+    <div class="stats-grid">${Array(4).fill().map(() => `<div class="skeleton skeleton-card"></div>`).join('')}</div>
+    <div class="card"><div class="skeleton skeleton-text" style="width:40%;"></div><div class="skeleton skeleton-text" style="width:60%;margin-top:16px;"></div><div class="skeleton skeleton-text"></div><div class="skeleton skeleton-text" style="width:80%;"></div></div>
+  </div>`;
+}
+function renderError(msg) { return `<div class="empty-state"><div class="empty-icon">❌</div><div class="empty-title">Error</div><div class="empty-desc">${escHtml(msg)}</div></div>`; }
+function statCard(icon, value, label, sub, color, bg, onclickAction='') {
+  return `<div class="stat-card" style="--card-accent:${color};--card-accent-bg:${bg};${onclickAction?'cursor:pointer;':''}" ${onclickAction?`onclick="${onclickAction}"`:''}>
+    <div class="stat-icon"><i class="fas ${icon}"></i></div>
+    <div class="stat-info">
+      <div class="stat-value">${value ?? '—'}</div>
+      <div class="stat-label">${label}</div>
+      ${sub ? `<div class="text-xs text-muted" style="margin-top:4px;">${sub}</div>` : ''}
+    </div>
+  </div>`;
+}
+function infoRow(label, value) { return `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-color);font-size:0.875rem;"><span class="text-muted">${label}</span><span style="color:var(--text-primary);text-align:right;max-width:60%;word-break:break-word;">${escHtml(String(value || '—'))}</span></div>`; }
+function renderPagination(p, fn) {
+  if (!p || p.pages <= 1) return '<div></div>';
+  return `<div class="pagination">
+    <button class="page-btn" onclick="${fn}(${p.page-1})" ${p.page<=1?'disabled':''}><i class="fas fa-chevron-left"></i></button>
+    ${Array.from({length:Math.min(p.pages,7)},(_,i)=>{const pg=i+1;return`<button class="page-btn${p.page===pg?' active':''}" onclick="${fn}(${pg})">${pg}</button>`;}).join('')}
+    <button class="page-btn" onclick="${fn}(${p.page+1})" ${p.page>=p.pages?'disabled':''}><i class="fas fa-chevron-right"></i></button>
+    <span class="pagination-info">${p.total} registros</span>
+  </div>`;
+}
+
+// Close dropdowns on outside click
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#btn-notif') && !e.target.closest('#notif-dropdown')) {
+    document.getElementById('notif-dropdown')?.classList.remove('show');
+  }
+  if (!e.target.closest('.sidebar-user') && !e.target.closest('#user-dropdown')) {
+    document.getElementById('user-dropdown')?.classList.remove('show');
+  }
+  // Close modals on overlay click
+  if (e.target.classList.contains('modal-overlay')) {
+    e.target.classList.remove('show');
+  }
+});

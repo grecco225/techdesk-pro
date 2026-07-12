@@ -1,0 +1,25 @@
+{
+  "name": "ticket-ia",
+  "version": "1.0.0",
+  "description": "Generador de tickets de soporte IT usando Gemini AI (gratuito)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.11.1",
+    "connect-sqlite3": "^0.9.16",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^8.5.2",
+    "express-session": "^1.19.0",
+    "express-validator": "^7.3.2",
+    "helmet": "^8.2.0",
+    "multer": "^2.2.0",
+    "nodemailer": "^9.0.3",
+    "uuid": "^14.0.1"
+  }
+}
