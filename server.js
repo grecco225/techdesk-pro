@@ -29,6 +29,7 @@ const { requireAuth } = require('./src/middleware/auth.middleware');
 const { csrfSetToken, csrfValidate } = require('./src/middleware/csrf.middleware');
 
 const app  = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 8005;
 
 // ══════════════════════════════════════════════════════════════
