@@ -42,7 +42,7 @@
           <i class="fas fa-user"></i> Mi perfil
         </div>
         <div class="dropdown-divider"></div>
-        <div class="dropdown-item danger" onclick="logout(event)">
+        <div class="dropdown-item danger" id="logout-btn">
           <i class="fas fa-right-from-bracket"></i> Cerrar sesión
         </div>
       </div>
@@ -1759,15 +1759,33 @@ document.getElementById('edit-user-form').addEventListener('submit', async (e) =
   } catch(err) { toast(err.message, 'error'); }
 });
 
-async function logout(event) {
-  if (event) event.stopPropagation();
-  document.getElementById('user-dropdown')?.classList.remove('show');
-  if (authSyncInterval) clearInterval(authSyncInterval);
-  try { await api('/auth/logout', 'POST'); } catch(e) { /* ignorar */ }
-  clearInactivityTimer();
-  broadcastAuthState(false);
-  window.location.href = '/login';
+async function logout() {
+  try {
+    document.getElementById('user-dropdown')?.classList.remove('show');
+    if (authSyncInterval) clearInterval(authSyncInterval);
+    try { await api('/auth/logout', 'POST'); } catch(e) { /* ignorar error de logout */ }
+    clearInactivityTimer();
+    broadcastAuthState(false);
+    localStorage.removeItem(AUTH_SYNC_KEY);
+    // Redirigir a login después de limpiar
+    setTimeout(() => { window.location.href = '/login'; }, 200);
+  } catch (e) {
+    console.error('Error en logout:', e);
+    window.location.href = '/login';
+  }
 }
+
+// Configurar el botón de logout cuando el DOM está listo
+document.addEventListener('DOMContentLoaded', () => {
+  const logoutBtn = document.getElementById('logout-btn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      logout();
+    });
+  }
+});
 
 // ── API Helper ─────────────────────────────────────────────────
 function getCsrfToken() {
