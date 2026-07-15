@@ -29,7 +29,7 @@
     </nav>
 
     <div class="sidebar-footer">
-      <div class="sidebar-user" onclick="toggleUserMenu(event)">
+      <div class="sidebar-user" id="sidebar-user-btn">
         <div class="user-avatar" id="user-avatar-sidebar">A</div>
         <div class="user-info">
           <div class="user-name" id="user-name-sidebar">Cargando...</div>
@@ -1689,10 +1689,23 @@ function closeSidebar() {
 }
 
 function toggleUserMenu(event) {
-  if (event) event.stopPropagation(); // Bug #4: Evita que el click propague al document y cierre el dropdown inmediatamente
+  if (event) event.stopPropagation();
   const drop = document.getElementById('user-dropdown');
-  if (drop) drop.classList.toggle('show');
+  if (drop) {
+    drop.classList.toggle('show');
+  }
 }
+
+// Inicializar el botón del usuario cuando el DOM está listo
+document.addEventListener('DOMContentLoaded', () => {
+  const sidebarUserBtn = document.getElementById('sidebar-user-btn');
+  if (sidebarUserBtn) {
+    sidebarUserBtn.addEventListener('click', (event) => {
+      toggleUserMenu(event);
+    });
+    sidebarUserBtn.style.cursor = 'pointer';
+  }
+});
 
 function toggleTheme() {
   const html = document.documentElement;
