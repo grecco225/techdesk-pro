@@ -42,7 +42,7 @@
           <i class="fas fa-user"></i> Mi perfil
         </div>
         <div class="dropdown-divider"></div>
-        <div class="dropdown-item danger" onclick="handleLogout(); return false;">
+        <div class="dropdown-item danger" onclick="performLogout()">
           <i class="fas fa-right-from-bracket"></i> Cerrar sesión
         </div>
       </div>
@@ -1759,39 +1759,45 @@ document.getElementById('edit-user-form').addEventListener('submit', async (e) =
   } catch(err) { toast(err.message, 'error'); }
 });
 
-// Manejador de logout simple y directo
-async function handleLogout() {
-  // Cerrar el dropdown inmediatamente
+// Función simple para logout
+function performLogout() {
+  // Cerrar el dropdown
   const dropdown = document.getElementById('user-dropdown');
-  if (dropdown) dropdown.classList.remove('show');
-  
-  try {
-    // Limpiar recursos
-    if (typeof authSyncInterval !== 'undefined' && authSyncInterval) {
-      clearInterval(authSyncInterval);
-    }
-    if (typeof clearInactivityTimer === 'function') {
-      clearInactivityTimer();
-    }
-    
-    // Llamar al endpoint de logout
-    await api('/auth/logout', 'POST').catch(() => {});
-    
-    // Limpiar estado
-    broadcastAuthState(false);
-    localStorage.removeItem(AUTH_SYNC_KEY);
-    
-    // Redirigir a login
-    window.location.href = '/login';
-  } catch (e) {
-    console.error('Error en logout:', e);
-    // Redirigir igualmente aunque haya error
-    window.location.href = '/login';
+  if (dropdown) {
+    dropdown.classList.remove('show');
   }
+  
+  // Limpiar timers si existen
+  try {
+    if (window.authSyncInterval) clearInterval(window.authSyncInterval);
+    if (window.clearInactivityTimer) window.clearInactivityTimer();
+  } catch (e) {
+    console.log('Error limpiando timers:', e);
+  }
+  
+  // Llamar logout del servidor
+  fetch('/auth/logout', { method: 'POST' })
+    .then(() => {
+      // Limpiar localStorage
+      try {
+        localStorage.removeItem('AUTH_SYNC_KEY');
+        localStorage.clear();
+      } catch (e) { }
+      // Redirigir
+      window.location.href = '/login';
+    })
+    .catch(() => {
+      // Redirigir aunque falle
+      window.location.href = '/login';
+    });
+}
+
+async function handleLogout() {
+  performLogout();
 }
 
 async function logout() {
-  await handleLogout();
+  performLogout();
 }
 
 // ── API Helper ─────────────────────────────────────────────────
