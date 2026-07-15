@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: techdesk-pro
+    env: docker
+    dockerfilePath: ./Dockerfile
+    autoDeploy: true
+    
+    # Puerto donde corre la aplicación
+    ports:
+      - port: 8005
+    
+    # Volumen persistente para la base de datos
+    # Esto asegura que los datos se mantengan entre deployments
+    disks:
+      - name: data
+        mountPath: /app/data
+        sizeGB: 1
+    
+    # Variables de entorno
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8005
+      # Agrega aquí otras variables según sea necesario
+      # - key: GEMINI_API_KEY
+      #   value: tu_clave_aqui
