@@ -29,22 +29,22 @@
     </nav>
 
     <div class="sidebar-footer">
-      <div class="sidebar-user" id="sidebar-user-btn">
+      <button type="button" class="sidebar-user" id="sidebar-user-btn" aria-expanded="false" aria-controls="user-dropdown">
         <div class="user-avatar" id="user-avatar-sidebar">A</div>
         <div class="user-info">
           <div class="user-name" id="user-name-sidebar">Cargando...</div>
           <div class="user-role" id="user-role-sidebar">—</div>
         </div>
         <i class="fas fa-ellipsis-v" style="color:var(--text-muted);font-size:12px;"></i>
-      </div>
+      </button>
       <div class="dropdown-menu" id="user-dropdown" style="bottom:100%;top:auto;margin-bottom:8px;">
-        <div class="dropdown-item" onclick="navigate('/dashboard')">
-          <i class="fas fa-user"></i> Mi perfil
-        </div>
+        <button type="button" class="dropdown-item" onclick="openPage('dashboard')">
+          <i class="fas fa-house"></i> Inicio
+        </button>
         <div class="dropdown-divider"></div>
-        <div class="dropdown-item danger" onclick="performLogout()">
+        <button type="button" class="dropdown-item danger" onclick="performLogout()">
           <i class="fas fa-right-from-bracket"></i> Cerrar sesión
-        </div>
+        </button>
       </div>
     </div>
   </aside>
@@ -70,7 +70,7 @@
 
         <!-- Notificaciones -->
         <div style="position:relative;">
-          <button class="navbar-btn" id="btn-notif" onclick="toggleNotifications()" title="Notificaciones">
+          <button type="button" class="navbar-btn" id="btn-notif" onclick="toggleNotifications()" title="Notificaciones" aria-expanded="false" aria-controls="notif-dropdown">
             <i class="fas fa-bell"></i>
             <div class="badge-dot" id="notif-dot" style="display:none;"></div>
           </button>
@@ -338,6 +338,9 @@ function buildSidebar() {
 
 // ── Routing / Navigation ────────────────────────────────────────
 function openPage(page) {
+  closeNotifications();
+  closeUserMenu();
+
   // Update active nav
   document.querySelectorAll('.nav-item').forEach(el => {
     el.classList.toggle('active', el.dataset.page === page);
@@ -1650,12 +1653,19 @@ async function loadNotifications() {
 
 function toggleNotifications() {
   const dd = document.getElementById('notif-dropdown');
-  dd.classList.toggle('show');
+  const isOpen = dd.classList.toggle('show');
+  document.getElementById('btn-notif')?.setAttribute('aria-expanded', String(isOpen));
+  closeUserMenu();
+}
+
+function closeNotifications() {
+  document.getElementById('notif-dropdown')?.classList.remove('show');
+  document.getElementById('btn-notif')?.setAttribute('aria-expanded', 'false');
 }
 
 async function markRead(id, link) {
   await api(`/admin/notifications/${id}/read`, 'PUT');
-  document.getElementById('notif-dropdown').classList.remove('show');
+  closeNotifications();
   if (link) { /* navigate */ }
   loadNotifications();
 }
@@ -1673,7 +1683,7 @@ function toggleSidebar() {
     const isOpen = sb.classList.toggle('mobile-open');
     overlay.style.display = isOpen ? 'block' : 'none';
   } else {
-    sb.classList.toggle('active');
+    sb.classList.toggle('collapsed');
   }
 }
 
@@ -1682,7 +1692,6 @@ function closeSidebar() {
   const overlay = document.getElementById('mobile-overlay');
   if (sidebar) {
     sidebar.classList.remove('mobile-open');
-    sidebar.classList.remove('active');
   }
   if (overlay) overlay.style.display = 'none';
 }
@@ -1691,8 +1700,15 @@ function toggleUserMenu(event) {
   if (event) event.stopPropagation();
   const drop = document.getElementById('user-dropdown');
   if (drop) {
-    drop.classList.toggle('show');
+    const isOpen = drop.classList.toggle('show');
+    document.getElementById('sidebar-user-btn')?.setAttribute('aria-expanded', String(isOpen));
+    closeNotifications();
   }
+}
+
+function closeUserMenu() {
+  document.getElementById('user-dropdown')?.classList.remove('show');
+  document.getElementById('sidebar-user-btn')?.setAttribute('aria-expanded', 'false');
 }
 
 // Inicializar el botón del usuario cuando el DOM está listo
@@ -1774,10 +1790,7 @@ document.getElementById('edit-user-form').addEventListener('submit', async (e) =
 // Función simple para logout
 function performLogout() {
   // Cerrar el dropdown
-  const dropdown = document.getElementById('user-dropdown');
-  if (dropdown) {
-    dropdown.classList.remove('show');
-  }
+  closeUserMenu();
   
   // Limpiar timers si existen
   try {
@@ -1956,14 +1969,21 @@ function initInactivityTimer() {
 // Close dropdowns on outside click
 document.addEventListener('click', (e) => {
   if (!e.target.closest('#btn-notif') && !e.target.closest('#notif-dropdown')) {
-    document.getElementById('notif-dropdown')?.classList.remove('show');
+    closeNotifications();
   }
   if (!e.target.closest('.sidebar-user') && !e.target.closest('#user-dropdown')) {
-    document.getElementById('user-dropdown')?.classList.remove('show');
+    closeUserMenu();
   }
   // Close modals on overlay click
   if (e.target.classList.contains('modal-overlay')) {
     e.target.classList.remove('show');
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeNotifications();
+    closeUserMenu();
   }
 });
 </script>

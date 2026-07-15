@@ -186,11 +186,13 @@ input, textarea, select { font-family: inherit; }
 /* Sidebar footer */
 .sidebar-footer {
   padding: 16px 12px; border-top: 1px solid var(--border-color); flex-shrink: 0;
+  position: relative;
 }
 .sidebar-user {
   display: flex; align-items: center; gap: 12px;
   padding: 10px; border-radius: var(--radius-md);
   transition: background var(--transition-fast); cursor: pointer;
+  width: 100%; border: none; background: none; text-align: left;
 }
 .sidebar-user:hover { background: var(--bg-hover); }
 .user-avatar {
