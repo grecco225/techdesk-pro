@@ -42,7 +42,7 @@
           <i class="fas fa-user"></i> Mi perfil
         </div>
         <div class="dropdown-divider"></div>
-        <div class="dropdown-item danger" id="logout-btn">
+        <div class="dropdown-item danger" onclick="handleLogout(); return false;">
           <i class="fas fa-right-from-bracket"></i> Cerrar sesión
         </div>
       </div>
@@ -1759,33 +1759,40 @@ document.getElementById('edit-user-form').addEventListener('submit', async (e) =
   } catch(err) { toast(err.message, 'error'); }
 });
 
-async function logout() {
+// Manejador de logout simple y directo
+async function handleLogout() {
+  // Cerrar el dropdown inmediatamente
+  const dropdown = document.getElementById('user-dropdown');
+  if (dropdown) dropdown.classList.remove('show');
+  
   try {
-    document.getElementById('user-dropdown')?.classList.remove('show');
-    if (authSyncInterval) clearInterval(authSyncInterval);
-    try { await api('/auth/logout', 'POST'); } catch(e) { /* ignorar error de logout */ }
-    clearInactivityTimer();
+    // Limpiar recursos
+    if (typeof authSyncInterval !== 'undefined' && authSyncInterval) {
+      clearInterval(authSyncInterval);
+    }
+    if (typeof clearInactivityTimer === 'function') {
+      clearInactivityTimer();
+    }
+    
+    // Llamar al endpoint de logout
+    await api('/auth/logout', 'POST').catch(() => {});
+    
+    // Limpiar estado
     broadcastAuthState(false);
     localStorage.removeItem(AUTH_SYNC_KEY);
-    // Redirigir a login después de limpiar
-    setTimeout(() => { window.location.href = '/login'; }, 200);
+    
+    // Redirigir a login
+    window.location.href = '/login';
   } catch (e) {
     console.error('Error en logout:', e);
+    // Redirigir igualmente aunque haya error
     window.location.href = '/login';
   }
 }
 
-// Configurar el botón de logout cuando el DOM está listo
-document.addEventListener('DOMContentLoaded', () => {
-  const logoutBtn = document.getElementById('logout-btn');
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      logout();
-    });
-  }
-});
+async function logout() {
+  await handleLogout();
+}
 
 // ── API Helper ─────────────────────────────────────────────────
 function getCsrfToken() {
