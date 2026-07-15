@@ -633,6 +633,7 @@ select.form-control { cursor: pointer; }
 @media (max-width: 1024px) {
   .page-content { padding: 20px; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .main-content { margin-left: var(--sidebar-width); }
 }
 
 @media (max-width: 768px) {
@@ -641,42 +642,104 @@ select.form-control { cursor: pointer; }
     transform: translateX(-100%);
     width: min(84vw, 280px);
     box-shadow: var(--shadow-lg);
+    z-index: 1000;
   }
-  .sidebar.mobile-open { transform: translateX(0); }
-  .main-content { margin-left: 0 !important; }
-  .navbar { padding: 0 14px; gap: 10px; min-height: 64px; }
+  .sidebar.mobile-open { 
+    transform: translateX(0);
+  }
+  .main-content { 
+    margin-left: 0 !important;
+    padding: 0;
+  }
+  .navbar { 
+    padding: 0 14px; 
+    gap: 10px; 
+    min-height: 64px; 
+    position: relative;
+    z-index: 100;
+  }
   .navbar-title { font-size: 1rem; }
   .navbar-breadcrumb { display: none; }
   .navbar-actions { gap: 6px; }
   .navbar-btn, .btn-sm { min-height: 40px; }
-  .page-content { padding: 16px; }
+  .page-content { 
+    padding: 16px 14px;
+    margin: 0;
+  }
   .stats-grid { grid-template-columns: 1fr 1fr; }
-  .filters-bar { padding: 12px; }
+  .filters-bar { 
+    padding: 14px 12px;
+    margin: 0 -14px;
+    gap: 8px;
+  }
+  .card {
+    padding: 16px;
+    margin: 0 0 14px 0;
+  }
   .modal { padding: 24px 20px; }
   .modal-footer { flex-direction: column-reverse; }
   .modal-footer .btn { width: 100%; }
   .grid-2, .grid-3 { grid-template-columns: 1fr !important; }
-  .card { padding: 16px; }
   .table-wrapper { border-radius: 12px; }
   .table td, .table th { padding: 10px 12px; }
-  .notif-dropdown { width: min(92vw, 360px); right: -12px; }
+  .notif-dropdown { 
+    width: min(92vw, 360px); 
+    right: 8px;
+    left: auto;
+  }
   .hide-sm { display: none !important; }
 }
 
 @media (max-width: 480px) {
   .stats-grid { grid-template-columns: 1fr !important; }
   .navbar { padding: 0 12px; }
-  .page-content { padding: 12px; }
-  .page-header h2 { font-size: 1.2rem; }
-  .page-header p { font-size: 0.8rem; }
+  .page-content { 
+    padding: 12px 12px;
+    margin: 0;
+  }
+  .page-header { margin: 0 0 16px 0; }
+  .page-header h2 { 
+    font-size: 1.2rem;
+    margin: 0;
+  }
+  .page-header p { 
+    font-size: 0.8rem;
+    margin: 4px 0 0 0;
+  }
   .btn, .btn-sm, .btn-primary, .btn-secondary, .btn-danger {
     min-height: 44px;
     padding: 10px 14px;
+    font-size: 1rem;
   }
-  .table td, .table th { padding: 10px 12px; font-size: 0.8rem; }
-  .sidebar-logo { padding: 0 16px; }
-  .sidebar-nav { padding: 12px 10px; }
-  .sidebar-user { padding: 8px; }
+  .table td, .table th { 
+    padding: 10px 12px; 
+    font-size: 0.8rem;
+  }
+  .card { 
+    padding: 14px;
+    margin: 0 0 12px 0;
+  }
+  .sidebar-logo { 
+    padding: 0 16px; 
+    margin: 0;
+  }
+  .sidebar-nav { 
+    padding: 12px 10px;
+    margin: 0;
+  }
+  .sidebar-user { 
+    padding: 8px;
+    margin: 0;
+  }
+  .filters-bar {
+    padding: 12px 10px;
+    gap: 8px;
+    flex-direction: column;
+  }
+  .filters-bar input,
+  .filters-bar select {
+    width: 100%;
+  }
 }
 
 /* ── Utilities ──────────────────────────────────────────────── */
