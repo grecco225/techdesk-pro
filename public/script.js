@@ -19,10 +19,18 @@ form.addEventListener('submit', async (e) => {
   btn.disabled = true;
   btn.textContent = 'Generando...';
 
+  const csrfToken = document.cookie
+    .split('; ')
+    .find((cookie) => cookie.startsWith('_csrf='))
+    ?.split('=')[1];
+
   try {
     const res = await fetch('/api/generar-ticket', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-csrf-token': csrfToken || ''
+      },
       body: JSON.stringify({ descripcion })
     });
 
