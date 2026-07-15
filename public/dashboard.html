@@ -441,7 +441,51 @@ function renderAdminDashboard(s) {
         <canvas id="chart-priority" height="200"></canvas>
       </div>
     </div>
+[NO CONTENT FOUND]El problema de que tu menú de usuario o botón de cerrar sesión no se despliegue al hacerle clic se debe a que **el menú desplegable (dropdown) no tiene inicializado el comportamiento de JavaScript de Bootstrap**, o bien no se importaron correctamente sus dependencias.
 
+Aquí tienes las soluciones más comunes para solucionarlo rápido:
+
+---
+
+### Solución 1: Inicialización manual en tu `render.js` (La más probable)
+
+Si estás cargando Bootstrap de forma dinámica o mediante módulos y el atributo `data-bs-toggle="dropdown"` no está funcionando por sí solo, debes inicializarlo manualmente con JavaScript.
+
+Añade este fragmento al final de tu archivo `render.js` (o en tu script principal) para activar todos los dropdowns de la página:
+
+`document.addEventListener("DOMContentLoaded", () => { document.querySelectorAll('[data-bs-toggle="dropdown"]').forEach(el => new bootstrap.Dropdown(el)); });`
+
+---
+
+### Solución 2: Verificar las dependencias en tu HTML
+
+Para que el dropdown de Bootstrap funcione, necesitas obligatoriamente su archivo de JavaScript (que incluye Popper.js). Asegúrate de tener esta etiqueta `<script>` justo antes de cerrar el `</body>` en tu HTML:
+
+`<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>`
+
+> ⚠️ **Nota:** El archivo debe ser el que dice `bootstrap.bundle.min.js` (el cual ya incluye Popper.js, necesario para posicionar los menús flotantes). Si usas solo `bootstrap.min.js`, el dropdown no se abrirá.
+
+---
+
+### Solución 3: Estructura HTML correcta del Dropdown
+
+Asegúrate de que la estructura de tu botón y del menú en tu archivo HTML siga estrictamente este formato de Bootstrap 5:
+
+```html
+<div class="dropdown">
+  <button class="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+    Mi Perfil
+  </button>
+  <ul class="dropdown-menu">
+    <li><a class="dropdown-item" href="#">Configuración</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><a class="dropdown-item" href="/logout">Cerrar Sesión</a></li>
+  </ul>
+</div>
+
+```
+
+* **Clave:** El botón debe tener exactamente el atributo `data-bs-toggle="dropdown"`. Si estás usando una versión antigua de Bootstrap (versión 4), el atributo cambia a `data-toggle="dropdown"` (sin el `bs-`).
     <div class="card">
       <div class="card-header">
         <div class="card-title">🕐 Tickets Recientes</div>
@@ -899,7 +943,7 @@ async function changeStatus(ticketId) {
 
 async function closeTicket(ticketId) {
   try {
-    await api(`/tickets/${ticketId}/status`, 'PUT', { status: 'cerrado' });
+    await api(`/tickets/${ticketId}/close`, 'PUT', {});
     toast('Ticket cerrado. ¡Gracias!', 'success');
     loadTicketDetail(ticketId);
   } catch(e) { toast(e.message, 'error'); }
